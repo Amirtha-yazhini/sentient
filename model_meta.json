@@ -1,0 +1,25 @@
+{
+  "features": [
+    "mean_signal",
+    "max_signal",
+    "min_signal",
+    "std_signal",
+    "num_networks",
+    "num_5ghz",
+    "num_24ghz",
+    "range_signal",
+    "mean_delta",
+    "std_delta",
+    "rolling_variance",
+    "rolling_mean_delta"
+  ],
+  "classes": [
+    "empty",
+    "occupied"
+  ],
+  "test_accuracy": 0.8696,
+  "cv_accuracy": 0.8766,
+  "trained_at": "2026-03-31T19:39:14.185877",
+  "n_estimators": 200,
+  "model_type": "RandomForest + StandardScaler"
+}

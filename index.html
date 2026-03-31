@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presence Detector</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #080c10;
+  --s1:       #0d1117;
+  --s2:       #111822;
+  --border:   rgba(255,255,255,0.06);
+  --border2:  rgba(255,255,255,0.12);
+  --text:     #cdd6f4;
+  --muted:    rgba(205,214,244,0.4);
+  --green:    #a6e3a1;
+  --amber:    #f9e2af;
+  --red:      #f38ba8;
+  --blue:     #89b4fa;
+  --teal:     #94e2d5;
+  --mauve:    #cba6f7;
+  --r:        10px;
+  --r2:       16px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── nav ── */
+nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+  border-bottom: 0.5px solid var(--border);
+  background: rgba(8,12,16,0.9);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.logo {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: blink 2s ease-in-out infinite;
+}
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.nav-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--s1);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 4px;
+}
+
+.tab {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 7px;
+  transition: background 0.15s, color 0.15s;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.tab.active {
+  background: var(--s2);
+  color: var(--text);
+}
+
+.conn-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--muted);
+  padding: 5px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 99px;
+}
+
+#conn-dot { width:6px;height:6px;border-radius:50%;background:var(--green); }
+
+/* ── layout ── */
+main { padding: 24px 28px; max-width: 1200px; margin: 0 auto; }
+
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── hero status ── */
+.hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.status-card {
+  background: var(--s1);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.status-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 50%, var(--glow-color, transparent) 0%, transparent 60%);
+  pointer-events: none;
+  transition: opacity 0.5s;
+}
+
+.orb {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  position: relative;
+}
+
+.orb-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--orb-color, rgba(255,255,255,0.1));
+  opacity: 0.4;
+}
+
+.orb-ring.pulse { animation: ring-pulse 1.5s ease-in-out infinite; }
+.orb-ring.fast  { animation: ring-pulse 0.7s ease-in-out infinite; }
+
+@keyframes ring-pulse {
+  0%,100%{ transform:scale(1); opacity:0.4; }
+  50%    { transform:scale(1.25); opacity:0.1; }
+}
+
+.status-info h2 {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+
+.status-info p { font-size: 13px; color: var(--muted); }
+
+.confidence-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 99px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--green);
+  transition: width 0.6s ease;
+}
+
+/* ── metric grid ── */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.metric {
+  background: var(--s1);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px;
+}
+
+.metric .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 8px;
+}
+
+.metric .value {
+  font-size: 26px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1;
+}
+
+.metric .sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── charts ── */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.chart-card {
+  background: var(--s1);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  padding: 20px;
+}
+
+.chart-card .chart-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chart-card .threshold-label {
+  font-size: 10px;
+  color: var(--amber);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── networks table ── */
+.networks-card {
+  background: var(--s1);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.networks-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 14px;
+}
+
+.networks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.network-item {
+  background: var(--s2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.network-ssid {
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.network-signal {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-weight: 500;
+}
+
+.sig-strong  { background: rgba(166,227,161,0.12); color: var(--green); }
+.sig-medium  { background: rgba(249,226,175,0.12); color: var(--amber); }
+.sig-weak    { background: rgba(243,139,168,0.12); color: var(--red); }
+
+.band-tag {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--muted);
+  border: 0.5px solid var(--border2);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ── log ── */
+.log-card {
+  background: var(--s1);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  padding: 20px;
+}
+
+.log-inner {
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+
+.log-entry {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 4px 0;
+  border-bottom: 0.5px solid var(--border);
+  line-height: 1.5;
+}
+
+.log-entry.event { color: var(--green); }
+.log-entry.clear { color: var(--blue); }
+.log-entry.error { color: var(--red); }
+
+/* ── history page ── */
+.history-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.btn {
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Space Grotesk', sans-serif;
+  border: 0.5px solid var(--border2);
+  background: var(--s1);
+  color: var(--text);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn:hover { background: var(--s2); border-color: rgba(255,255,255,0.2); }
+.btn.active { border-color: var(--blue); color: var(--blue); }
+
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.table-card {
+  background: var(--s1);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  padding: 20px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 0.5px solid var(--border2);
+}
+td { padding: 9px 12px; border-bottom: 0.5px solid var(--border); font-family: 'JetBrains Mono', monospace; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+
+.pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.pill-absent  { background:rgba(205,214,244,0.08); color:var(--muted); }
+.pill-still   { background:rgba(137,180,250,0.12); color:var(--blue); }
+.pill-active  { background:rgba(249,226,175,0.12); color:var(--amber); }
+.pill-walking { background:rgba(166,227,161,0.12); color:var(--green); }
+
+/* ── networks page ── */
+.bssid-table td:first-child { color: var(--teal); }
+
+/* ── occupancy heatmap ── */
+.heatmap-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.heatmap-cell {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  gap: 2px;
+  transition: transform 0.15s;
+  cursor: default;
+}
+
+.heatmap-cell:hover { transform: scale(1.1); }
+.heatmap-cell .h-label { color: rgba(255,255,255,0.5); }
+.heatmap-cell .h-val   { font-weight: 500; font-size: 10px; }
+
+/* ── responsive ── */
+@media (max-width: 768px) {
+  .hero         { grid-template-columns: 1fr; }
+  .metrics      { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid  { grid-template-columns: 1fr; }
+  .summary-cards{ grid-template-columns: repeat(2, 1fr); }
+  nav           { flex-wrap: wrap; gap: 10px; }
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <div class="logo-dot" id="logo-dot"></div>
+    presence_detector
+  </div>
+  <div class="nav-tabs">
+    <button class="tab active" onclick="showPage('live')">Live</button>
+    <button class="tab" onclick="showPage('history')">History</button>
+    <button class="tab" onclick="showPage('networks')">Networks</button>
+  </div>
+  <div class="conn-badge">
+    <div id="conn-dot"></div>
+    <span id="conn-label">connecting...</span>
+  </div>
+</nav>
+
+<main>
+
+<!-- ══ LIVE PAGE ══ -->
+<div class="page active" id="page-live">
+
+  <div class="hero">
+    <!-- Status card -->
+    <div class="status-card" id="status-card">
+      <div class="orb" id="orb">
+        <div class="orb-ring" id="orb-ring"></div>
+        <span id="orb-icon">◌</span>
+      </div>
+      <div class="status-info" style="flex:1">
+        <h2 id="status-label" style="color:var(--muted)">Warming up...</h2>
+        <p id="status-sub">Collecting baseline signal data</p>
+        <div class="confidence-bar">
+          <div class="confidence-fill" id="conf-fill" style="width:0%;background:var(--muted)"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)">
+          <span>confidence</span>
+          <span id="conf-pct">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Person count card (webcam) -->
+    <div class="status-card" style="--glow-color:rgba(148,226,213,0.06)">
+      <div class="orb" style="background:rgba(148,226,213,0.08);color:var(--teal);font-size:32px">
+        ◉
+      </div>
+      <div class="status-info" style="flex:1">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:6px">persons detected</div>
+        <div style="font-size:48px;font-weight:600;font-family:'JetBrains Mono',monospace;line-height:1;color:var(--teal)" id="person-count">—</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">via webcam · HOG detector</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics">
+    <div class="metric">
+      <div class="label">Variance</div>
+      <div class="value" id="m-variance" style="color:var(--blue)">—</div>
+      <div class="sub">RSSI std-dev</div>
+    </div>
+    <div class="metric">
+      <div class="label">Zone</div>
+      <div class="value" id="m-zone" style="font-size:18px;padding-top:4px">—</div>
+      <div class="sub">distance estimate</div>
+    </div>
+    <div class="metric">
+      <div class="label">Networks</div>
+      <div class="value" id="m-networks" style="color:var(--mauve)">—</div>
+      <div class="sub">visible APs</div>
+    </div>
+    <div class="metric">
+      <div class="label">Scans</div>
+      <div class="value" id="m-scans" style="color:var(--muted)">0</div>
+      <div class="sub">total completed</div>
+    </div>
+    <div class="metric" id="ml-metric">
+      <div class="label">ML Model</div>
+      <div class="value" id="m-ml" style="font-size:14px;padding-top:6px;color:var(--muted)">not trained</div>
+      <div class="sub" id="m-ml-sub">run record.py + train.py</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">
+        <span>Variance history</span>
+        <span class="threshold-label" id="thresh-label">threshold —</span>
+      </div>
+      <div style="position:relative;height:200px">
+        <canvas id="varChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><span>Confidence</span></div>
+      <div style="position:relative;height:200px">
+        <canvas id="confChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Networks -->
+  <div class="networks-card">
+    <div class="networks-title">Visible networks <span id="net-count" style="color:var(--mauve)"></span></div>
+    <div class="networks-grid" id="networks-grid">
+      <div style="color:var(--muted);font-size:12px">Scanning...</div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="log-card">
+    <div class="chart-title" style="margin-bottom:12px">Event log</div>
+    <div class="log-inner" id="log-inner">
+      <div class="log-entry">Waiting for data...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ HISTORY PAGE ══ -->
+<div class="page" id="page-history">
+  <div class="history-controls">
+    <span style="font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace">Last</span>
+    <button class="btn active" onclick="setHours(6,this)">6h</button>
+    <button class="btn" onclick="setHours(12,this)">12h</button>
+    <button class="btn" onclick="setHours(24,this)">24h</button>
+    <button class="btn" onclick="setHours(48,this)">48h</button>
+    <div style="flex:1"></div>
+    <button class="btn" onclick="exportCSV()" style="border-color:var(--teal);color:var(--teal)">↓ Export CSV</button>
+  </div>
+
+  <div class="summary-cards" id="summary-cards">
+    <div class="metric"><div class="label">Total Scans</div><div class="value" id="s-scans">—</div></div>
+    <div class="metric"><div class="label">Presence Time</div><div class="value" id="s-mins" style="color:var(--green)">—</div><div class="sub">minutes</div></div>
+    <div class="metric"><div class="label">Peak Hour</div><div class="value" id="s-peak" style="font-size:18px;padding-top:4px;color:var(--amber)">—</div></div>
+    <div class="metric"><div class="label">Avg Confidence</div><div class="value" id="s-conf" style="color:var(--blue)">—</div><div class="sub">%</div></div>
+  </div>
+
+  <div class="chart-card" style="margin-bottom:16px">
+    <div class="chart-title"><span>Hourly occupancy (last 24h)</span></div>
+    <div class="heatmap-row" id="heatmap-row">
+      <div style="color:var(--muted);font-size:12px">Loading...</div>
+    </div>
+  </div>
+
+  <div class="chart-card" style="margin-bottom:16px">
+    <div class="chart-title"><span>Activity over time</span></div>
+    <div style="position:relative;height:180px">
+      <canvas id="histChart"></canvas>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="chart-title" style="margin-bottom:12px">Events</div>
+    <div style="max-height:360px;overflow-y:auto">
+      <table>
+        <thead><tr>
+          <th>Time</th><th>Activity</th><th>Confidence</th><th>Variance</th><th>Persons</th><th>Zone</th>
+        </tr></thead>
+        <tbody id="events-tbody">
+          <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NETWORKS PAGE ══ -->
+<div class="page" id="page-networks">
+  <div class="chart-card" style="margin-bottom:16px">
+    <div class="chart-title"><span>Per-network RSSI (Kalman-filtered)</span></div>
+    <div style="position:relative;height:220px">
+      <canvas id="netChart"></canvas>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="chart-title" style="margin-bottom:12px">All visible networks (2.4GHz + 5GHz)</div>
+    <table class="bssid-table">
+      <thead><tr><th>SSID</th><th>Band</th><th>BSSID</th><th>Signal</th><th>Kalman mean</th><th>Std-dev</th><th>Samples</th></tr></thead>
+      <tbody id="net-tbody">
+        <tr><td colspan="7" style="color:var(--muted);text-align:center;padding:24px">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</main>
+
+<script>
+const API = 'http://localhost:8000';
+let histHours = 6;
+let varChart, confChart, histChart, netChart;
+
+// ── Charts init ───────────────────────────────────────────────────────────
+function mkVarChart() {
+  varChart = new Chart(document.getElementById('varChart'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        { label: 'Variance', data: [], borderColor: '#89b4fa', backgroundColor: 'rgba(137,180,250,0.07)', borderWidth: 1.5, fill: true, tension: 0.4, pointRadius: 0 },
+        { label: 'Threshold', data: [], borderColor: '#f9e2af', borderWidth: 1, borderDash: [4,4], pointRadius: 0, fill: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { display: false },
+        y: { min: 0, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 5 } }
+      }
+    }
+  });
+}
+
+function mkConfChart() {
+  confChart = new Chart(document.getElementById('confChart'), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label: 'Confidence', data: [], borderColor: '#a6e3a1', backgroundColor: 'rgba(166,227,161,0.07)', borderWidth: 1.5, fill: true, tension: 0.4, pointRadius: 0 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: { legend: { display: false } },
+      scales: { x: { display: false }, y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 4, callback: v => v+'%' } } }
+    }
+  });
+}
+
+function mkHistChart() {
+  histChart = new Chart(document.getElementById('histChart'), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label: 'Confidence', data: [], borderColor: '#cba6f7', backgroundColor: 'rgba(203,166,247,0.07)', borderWidth: 1, fill: true, tension: 0.3, pointRadius: 0 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 200 },
+      plugins: { legend: { display: false } },
+      scales: { x: { display: false }, y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 4 } } }
+    }
+  });
+}
+
+function mkNetChart() {
+  netChart = new Chart(document.getElementById('netChart'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Signal', data: [], backgroundColor: 'rgba(137,180,250,0.5)', borderColor: '#89b4fa', borderWidth: 1, borderRadius: 4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { color: '#555', font: { family: 'JetBrains Mono', size: 9 }, maxRotation: 45, autoSkip: false } }, y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555', font: { family: 'JetBrains Mono', size: 10 } } } }
+    }
+  });
+}
+
+// ── Status display ─────────────────────────────────────────────────────────
+const STATUS_MAP = {
+  warming_up:    { label: 'Warming up...', sub: 'Collecting baseline', color: 'var(--muted)',  icon: '◌', glow: 'transparent', ring: '' },
+  error_no_wifi: { label: 'No WiFi found', sub: 'Check adapter/permissions', color: 'var(--red)', icon: '✕', glow: 'rgba(243,139,168,0.08)', ring: '' },
+  absent:        { label: 'Area clear', sub: 'No presence detected', color: 'var(--muted)',  icon: '○', glow: 'transparent', ring: '' },
+  still:         { label: 'Presence — still', sub: 'Someone nearby, not moving', color: 'var(--blue)',  icon: '●', glow: 'rgba(137,180,250,0.08)', ring: 'pulse' },
+  active:        { label: 'Presence — active', sub: 'Movement detected', color: 'var(--amber)', icon: '◉', glow: 'rgba(249,226,175,0.08)', ring: 'pulse' },
+  walking:       { label: 'Motion — walking', sub: 'High movement intensity', color: 'var(--green)', icon: '◎', glow: 'rgba(166,227,161,0.1)', ring: 'fast' },
+};
+
+function updateStatus(d) {
+  const cfg = STATUS_MAP[d.activity] || STATUS_MAP['absent'];
+  const label = document.getElementById('status-label');
+  const sub   = document.getElementById('status-sub');
+  const orb   = document.getElementById('orb');
+  const ring  = document.getElementById('orb-ring');
+  const icon  = document.getElementById('orb-icon');
+  const card  = document.getElementById('status-card');
+
+  label.textContent = cfg.label;
+  label.style.color = cfg.color;
+  sub.textContent   = cfg.sub;
+  icon.textContent  = cfg.icon;
+  icon.style.color  = cfg.color;
+  orb.style.background = cfg.glow.replace('rgba','rgba').replace('0.1','0.12');
+  card.style.setProperty('--glow-color', cfg.glow);
+  ring.className = 'orb-ring ' + cfg.ring;
+  ring.style.borderColor = cfg.color;
+
+  const confFill = document.getElementById('conf-fill');
+  confFill.style.width = d.confidence + '%';
+  confFill.style.background = cfg.color;
+  document.getElementById('conf-pct').textContent = d.confidence + '%';
+}
+
+// ── Live poll ──────────────────────────────────────────────────────────────
+async function pollLive() {
+  try {
+    const r = await fetch(API + '/api/state');
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+
+    setConn(true);
+    updateStatus(d);
+
+    const pc = d.person_count;
+    document.getElementById('person-count').textContent = pc === 0 ? '0' : pc;
+
+    document.getElementById('m-variance').textContent = d.variance.toFixed(2);
+    document.getElementById('m-variance').style.color = d.variance > d.threshold ? 'var(--amber)' : 'var(--blue)';
+
+    const zoneColors = { near:'var(--green)', mid:'var(--amber)', far:'var(--red)', unknown:'var(--muted)' };
+    const zEl = document.getElementById('m-zone');
+    zEl.textContent = d.zone;
+    zEl.style.color = zoneColors[d.zone] || 'var(--muted)';
+
+    document.getElementById('m-networks').textContent = d.current_networks.length;
+    document.getElementById('m-scans').textContent = d.scan_count;
+    document.getElementById('thresh-label').textContent = 'threshold ' + d.threshold;
+
+    // ML model status
+    const mlEl    = document.getElementById('m-ml');
+    const mlSubEl = document.getElementById('m-ml-sub');
+    if (d.using_ml && d.ml_label !== null) {
+      const mlColor = d.ml_label === 'occupied' ? 'var(--green)' : 'var(--muted)';
+      mlEl.textContent    = d.ml_label;
+      mlEl.style.color    = mlColor;
+      mlSubEl.textContent = `${d.ml_confidence}% conf · ${d.ml_accuracy ? (d.ml_accuracy*100).toFixed(1)+'% acc' : ''}`;
+    } else if (d.using_ml) {
+      mlEl.textContent    = 'loaded';
+      mlEl.style.color    = 'var(--blue)';
+      mlSubEl.textContent = d.ml_accuracy ? `accuracy ${(d.ml_accuracy*100).toFixed(1)}%` : 'warming up...';
+    } else {
+      mlEl.textContent    = 'not trained';
+      mlEl.style.color    = 'var(--muted)';
+      mlSubEl.textContent = 'run record.py + train.py';
+    }
+
+    // variance chart
+    const vl = d.variance_history.map((_,i) => i);
+    varChart.data.labels = vl;
+    varChart.data.datasets[0].data = d.variance_history;
+    varChart.data.datasets[1].data = d.variance_history.map(() => d.threshold);
+    const maxV = Math.max(...d.variance_history, d.threshold + 1);
+    varChart.options.scales.y.max = Math.ceil(maxV) + 1;
+    varChart.update('none');
+
+    // confidence chart
+    confChart.data.labels = d.confidence_history.map((_,i) => i);
+    confChart.data.datasets[0].data = d.confidence_history;
+    confChart.update('none');
+
+    // networks grid
+    const ng = document.getElementById('networks-grid');
+    document.getElementById('net-count').textContent = '(' + d.current_networks.length + ')';
+    if (d.current_networks.length) {
+      ng.innerHTML = d.current_networks.map(n => {
+        const cls = n.signal >= 70 ? 'sig-strong' : n.signal >= 45 ? 'sig-medium' : 'sig-weak';
+        return `<div class="network-item">
+          <div>
+            <div class="network-ssid">${escHtml(n.ssid || '—')}</div>
+            <span class="band-tag">${n.band || '2.4GHz'}</span>
+          </div>
+          <span class="network-signal ${cls}">${n.signal}%</span>
+        </div>`;
+      }).join('');
+    }
+
+    // log
+    const logEl = document.getElementById('log-inner');
+    if (d.log.length) {
+      logEl.innerHTML = d.log.map(e => {
+        const cls = e.includes('PRESENCE') || e.includes('DETECTED') ? 'event' :
+                    e.includes('cleared') || e.includes('clear') ? 'clear' :
+                    e.includes('Error') || e.includes('error') ? 'error' : '';
+        return `<div class="log-entry ${cls}">${escHtml(e)}</div>`;
+      }).join('');
+    }
+  } catch (e) {
+    setConn(false);
+  }
+}
+
+// ── History ────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  try {
+    const [sr, hr, hourr] = await Promise.all([
+      fetch(API + '/api/summary').then(r=>r.json()),
+      fetch(API + '/api/history?hours=' + histHours).then(r=>r.json()),
+      fetch(API + '/api/hourly').then(r=>r.json()),
+    ]);
+
+    document.getElementById('s-scans').textContent = sr.total_scans;
+    document.getElementById('s-mins').textContent  = sr.presence_minutes;
+    document.getElementById('s-peak').textContent  = sr.peak_hour;
+    document.getElementById('s-conf').textContent  = sr.avg_confidence;
+
+    // heatmap
+    const hm = document.getElementById('heatmap-row');
+    const hourData = hourr.data;
+    if (hourData.length) {
+      const maxMin = Math.max(...hourData.map(h=>h.minutes), 1);
+      hm.innerHTML = hourData.map(h => {
+        const intensity = h.minutes / maxMin;
+        const alpha = Math.round(intensity * 180);
+        const bg = `rgba(137,180,250,${(intensity*0.6+0.05).toFixed(2)})`;
+        return `<div class="heatmap-cell" style="background:${bg}" title="${h.hour}: ${h.minutes}min">
+          <span class="h-label">${h.hour.split(' ')[1]}</span>
+          <span class="h-val">${Math.round(h.minutes)}m</span>
+        </div>`;
+      }).join('');
+    } else {
+      hm.innerHTML = '<div style="color:var(--muted);font-size:12px">No data yet</div>';
+    }
+
+    // hist chart
+    const events = hr.events.slice().reverse();
+    histChart.data.labels = events.map(e => new Date(e.ts*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+    histChart.data.datasets[0].data = events.map(e => e.confidence);
+    histChart.update('none');
+
+    // table
+    const tbody = document.getElementById('events-tbody');
+    if (events.length) {
+      tbody.innerHTML = events.slice().reverse().slice(0,100).map(e => {
+        const dt = new Date(e.ts*1000).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        return `<tr>
+          <td>${dt}</td>
+          <td><span class="pill pill-${e.activity}">${e.activity}</span></td>
+          <td style="color:var(--blue)">${e.confidence}%</td>
+          <td style="color:var(--muted)">${e.variance}</td>
+          <td style="color:var(--teal)">${e.person_count}</td>
+          <td style="color:var(--amber)">${e.zone}</td>
+        </tr>`;
+      }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">No events yet</td></tr>';
+    }
+  } catch {}
+}
+
+// ── Networks page ──────────────────────────────────────────────────────────
+async function loadNetworks() {
+  try {
+    const r = await fetch(API + '/api/networks');
+    const d = await r.json();
+
+    // bar chart
+    const nets = d.networks.slice(0, 12);
+    netChart.data.labels = nets.map(n => (n.ssid || 'hidden').substring(0,10));
+    netChart.data.datasets[0].data = nets.map(n => n.signal);
+    netChart.data.datasets[0].backgroundColor = nets.map(n =>
+      n.band === '5GHz' ? 'rgba(148,226,213,0.5)' : 'rgba(137,180,250,0.5)'
+    );
+    netChart.update('none');
+
+    // table
+    const tbody = document.getElementById('net-tbody');
+    const bssid = d.per_bssid || {};
+    if (d.networks.length) {
+      tbody.innerHTML = d.networks.map(n => {
+        const b = bssid[n.bssid] || {};
+        return `<tr>
+          <td>${escHtml(n.ssid || 'hidden')}</td>
+          <td><span class="band-tag">${n.band}</span></td>
+          <td style="color:var(--teal);font-size:11px">${n.bssid}</td>
+          <td><span class="network-signal ${n.signal>=70?'sig-strong':n.signal>=45?'sig-medium':'sig-weak'}">${n.signal}%</span></td>
+          <td style="color:var(--blue)">${b.mean ?? '—'}</td>
+          <td style="color:var(--amber)">${b.stdev ?? '—'}</td>
+          <td style="color:var(--muted)">${b.samples ?? '—'}</td>
+        </tr>`;
+      }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:24px">No data</td></tr>';
+    }
+  } catch {}
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function setConn(ok) {
+  document.getElementById('conn-dot').style.background   = ok ? 'var(--green)' : 'var(--red)';
+  document.getElementById('conn-label').textContent      = ok ? 'live' : 'disconnected';
+  document.getElementById('logo-dot').style.background   = ok ? 'var(--green)' : 'var(--red)';
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'history')  loadHistory();
+  if (name === 'networks') loadNetworks();
+}
+
+function setHours(h, btn) {
+  histHours = h;
+  document.querySelectorAll('.history-controls .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadHistory();
+}
+
+function exportCSV() {
+  window.open(API + '/api/export/csv?hours=' + histHours);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Bootstrap ──────────────────────────────────────────────────────────────
+mkVarChart();
+mkConfChart();
+mkHistChart();
+mkNetChart();
+
+pollLive();
+setInterval(pollLive, 2000);
+setInterval(() => {
+  const activePage = document.querySelector('.page.active');
+  if (activePage.id === 'page-networks') loadNetworks();
+}, 5000);
+</script>
+</body>
+</html>
